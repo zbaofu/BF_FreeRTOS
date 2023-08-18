@@ -1,0 +1,11 @@
+.\objects\task.o: ..\freertos\Source\task.c
+.\objects\task.o: ..\freertos\include\task.h
+.\objects\task.o: ..\freertos\include\portmacro.h
+.\objects\task.o: D:\software\keil5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\task.o: D:\software\keil5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\task.o: ..\freertos\include\FreeRTOSConfig.h
+.\objects\task.o: ..\freertos\include\projdefs.h
+.\objects\task.o: ..\freertos\include\FreeRTOS.h
+.\objects\task.o: ..\freertos\include\list.h
+.\objects\task.o: ..\freertos\include\task.h
+.\objects\task.o: ..\freertos\include\portable.h
