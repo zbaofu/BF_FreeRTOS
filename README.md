@@ -9,5 +9,8 @@ FreeRTOS内核源码学习记录，按照《野火Free_RTOS内核实现于应用
 ## 参考资料
 《Cortex-M3权威指南》（中文）  
 
+## 进展
+实现了任务创建和切换
+
 ## 项目日志
 https://vintage-march-2cf.notion.site/BF_RTOS-0272bf91d4c34ba2bae2bbe89312ba36?pvs=4
