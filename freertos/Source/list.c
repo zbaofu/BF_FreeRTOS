@@ -35,9 +35,9 @@ void vListInitialise(List_t *const pxList){
 }
 
 /* 将节点插入到链表的尾部根节点 */
-void vListInsertEnd(List_t * const pxList,ListItem_t *const pxNewListItem){
+void vListInsertEnd(List_t * const pxList,ListItem_t * const pxNewListItem){
 	// 将根节点的索引指向新定义的节点
-	ListItem_t *const pxIndex = pxList->pxIndex;
+	ListItem_t * const pxIndex = pxList->pxIndex;
 	
 	pxNewListItem->pxNext = pxIndex;
 	pxNewListItem->pxPrevious = pxIndex->pxPrevious;

@@ -28,9 +28,17 @@ TaskHandle_t Task2_Handle;
 #define TASK2_STACK_SIZE   128
 StackType_t Task2Stack[TASK2_STACK_SIZE];
 
+/* 定义空闲任务的栈 */
+StackType_t IdleTaskStack[configMINIMAL_STACK_SIZE];
+
+
+
 /* 定义任务控制块 */
 TCB_t Task1TCB;
 TCB_t Task2TCB;
+
+/* 定义空闲任务的任务控制块 */
+TCB_t IdleTaskTCB;  
 
 
 /* 定义任务函数 */
@@ -44,6 +52,7 @@ void delay(uint32_t count){
 
 void Task1_Entry(void *p_arg){
 	for(;;){
+#if 0
 		flag1 = 1;
 		delay(100);
 		flag1 = 0;
@@ -51,14 +60,19 @@ void Task1_Entry(void *p_arg){
 		
 		/* 任务切换，手动切换 */
 		taskYIELD();
-	
+#else // 改用阻塞延时
+		flag1 = 0;
+		vTaskDelay(1); // 延时20ms
+		flag1 = 1;
+		vTaskDelay(1);
+#endif
 	}
 }
 
 /* 任务2 */
-
 void Task2_Entry(void *p_arg){
 	for(;;){
+#if 0		
 		flag2 = 1;
 		delay(100);
 		flag2 = 0;
@@ -66,11 +80,26 @@ void Task2_Entry(void *p_arg){
 		
 		/* 任务切换，手动切换 */
 		taskYIELD();	
+#else // 改用阻塞延时
+		flag2 = 1;
+		vTaskDelay(1);
+		flag2 = 0;
+		vTaskDelay(1);
+#endif
 	
 	}
-
-
 }
+
+/* 获取空闲任务的内存 */
+void vApplicationGetIdleTaskMemory( TCB_t **ppxIdleTaskTCBBuffer, 
+                                    StackType_t **ppxIdleTaskStackBuffer, 
+                                    uint32_t *pulIdleTaskStackSize )
+{
+		*ppxIdleTaskTCBBuffer=&IdleTaskTCB;
+		*ppxIdleTaskStackBuffer=IdleTaskStack; 
+		*pulIdleTaskStackSize=configMINIMAL_STACK_SIZE;
+}
+
 
 
 int main(void){
@@ -80,7 +109,7 @@ int main(void){
 	
 	// 创建任务1
 	Task1_Handle = xTaskCreateStatic((TaskFunction_t) Task1_Entry, // 任务入口
-	                                  (char *)"Job1",              // 任务名称
+	                                  (char *)"Task1",              // 任务名称
 																			(uint32_t)TASK1_STACK_SIZE,  // 任务栈大小
 																		(void*)NULL,                 // 任务参数
 																			(StackType_t *)Task1Stack,  // 任务栈起始地址

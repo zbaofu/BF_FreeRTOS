@@ -15,6 +15,7 @@
 
 #include "stdint.h"
 #include "stddef.h"
+#include "FreeRTOSConfig.h"
 
 
 // Êı¾İÀàĞÍÖØ¶¨Òå
@@ -51,8 +52,6 @@ typedef uint32_t TickType_t;
 portYIELDµÄÊµÏÖ¾ÍÊÇ½« PendSVµÄĞüÆğÎ»ÖÃ 1£¬µ±Ã»ÓĞÆäËüÖĞ¶ÏÔËĞĞµÄÊ±ºòÏìÓ¦ PendSVÖĞ¶Ï£¬
 È¥Ö´ĞĞÎÒÃÇĞ´ºÃµÄ PendSVÖĞ¶Ï·şÎñº¯Êı£¬ÔÚ ÀïÃæÊµÏÖÈÎÎñÇĞ»»¡£
 */
-
-
 #define portYIELD()                               \
 {                                                 \
 	/* ´¥·¢PendSV£¬²úÉúÉÏÏÂÎÄÇĞ»» */                  \
@@ -61,6 +60,83 @@ portYIELDµÄÊµÏÖ¾ÍÊÇ½« PendSVµÄĞüÆğÎ»ÖÃ 1£¬µ±Ã»ÓĞÆäËüÖĞ¶ÏÔËĞĞµÄÊ±ºòÏìÓ¦ PendSVÖĞ¶
 	__isb( portSY_FULL_READ_WRITE );                \
 }
 
+#define portTASK_FUNCTION( vFunction, pvParameters ) void vFunction( void *pvParameters )
+
+/********* ÁÙ½çÇø¹ÜÀí£¬½øĞĞÖĞ¶ÏµÄ¿ª¹Ø ***********/
+
+// ÉèÖÃÄÚÁªinlineĞŞÊÎ·û½Ó¿Ú
+#define portINLINE __inline
+
+#ifndef portFORCE_INLINE
+	#define portFORCE_INLINE __forceinline
+#endif
+
+/* ·ÇÖĞ¶Ï±£»¤µÄ½ø³öÁÙ½ç¶ÎµÄºê */
+#define portENTER_CRITICAL()					vPortEnterCritical()
+#define portEXIT_CRITICAL()						vPortExitCritical()
+
+/* ²»´øÖĞ¶Ï±£»¤µÄ¿ª¹ØÖĞ¶Ïº¯Êı */
+#define portDISABLE_INTERRUPTS() vPortRaiseBASEPRI()
+#define portENABLE_INTERRUPTS() vPortSetBASEPRI( 0 ) /* º¯Êı²ÎÊıÉèÖÃÎª0£¬²»´øÖĞ¶Ï±£»¤ */
+
+/* ´øÖĞ¶Ï±£»¤µÄ¿ª¹ØÖĞ¶Ïº¯Êı */
+#define portSET_INTERRUPT_MASK_FROM_ISR() ulPortRaiseBASEPRI()
+#define portCLEAR_INTERRUPT_MASK_FROM_ISR(x)	vPortSetBASEPRI(x) /* º¯Êı²ÎÊıÉèÖÃ³É¹ØÖĞ¶ÏÊ±¼Ä´æÆ÷µÄÖµ*/
+
+
+/* ²»´ø·µ»ØÖµµÄ¹ØÖĞ¶Ïº¯Êı£¬ÎŞ·¨Ç¶Ì×£¬²»ÄÜÔÚÖĞ¶ÏÖĞÊ¹ÓÃ */
+static portFORCE_INLINE void vPortRaiseBASEPRI( void )
+{
+uint32_t ulNewBASEPRI = configMAX_SYSCALL_INTERRUPT_PRIORITY;
+
+	__asm
+	{
+		/* ¹ØÖĞ¶Ï£¬½«basepri¼Ä´æÆ÷ÉèÖÃÎªÏµÍ³ËùÔÊĞíµÄ×î´óµÄÓÅÏÈ¼¶ºÅ£¬
+		ÆäËûÖĞ¶ÏµÄÓÅÏÈ¼¶Ò²¾Í¸ßÓÚÕâ¸ö×î´óÖµ£¬ÓÅÏÈ¼¶ºÅÔ½´ó£¬ÓÅÏÈ¼¶Ô½Ğ¡¡£ */
+		msr basepri, ulNewBASEPRI
+		dsb
+		isb
+	}
+}
+
+/* ´ø·µ»ØÖµµÄ¹ØÖĞ¶Ïº¯Êı£¬¿ÉÒÔÇ¶Ì×£¬¿ÉÒÔÔÚÖĞ¶ÏÀïÃæÊ¹ÓÃ */
+static portFORCE_INLINE uint32_t ulPortRaiseBASEPRI( void )
+{
+uint32_t ulReturn, ulNewBASEPRI = configMAX_SYSCALL_INTERRUPT_PRIORITY;
+
+	__asm
+	{
+		/* ÓëÉÏÎÄÒ»Ñù£¬¹ØÖĞ¶Ï£¬Í¬Ê±°Ñbasepri¼Ä´æÆ÷µÄÖµ±£´æ²¢·µ»Ø */
+		mrs ulReturn, basepri
+		msr basepri, ulNewBASEPRI
+		dsb
+		isb
+	}
+
+	return ulReturn;
+}
+
+/* ¿ªÖĞ¶Ï£¬½µµÍbasepriµÄÖµ  */
+static portFORCE_INLINE void vPortSetBASEPRI( uint32_t ulBASEPRI ){
+	__asm
+	{
+		// ¿ªÖĞ¶Ï
+		msr basepri, ulBASEPRI 
+	
+	}
+}
+
+/* ¿ªÖĞ¶Ï£¬Ö±½Ó½«basepri¼Ä´æÆ÷µÄÖµÉèÎª0 */
+static portFORCE_INLINE void vPortClearBASEPRIFromISR( void )
+{
+	__asm
+	{
+		/* Set BASEPRI to 0 so no interrupts are masked.  This function is only
+		used to lower the mask in an interrupt, so memory barriers are not 
+		used. */
+		msr basepri, #0
+	}
+}
 
 
 

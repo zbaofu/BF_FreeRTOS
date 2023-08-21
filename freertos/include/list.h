@@ -89,6 +89,8 @@ typedef struct xLIST{
 	( pxTCB ) = ( pxConstList )->pxIndex->pvOwner;											 \
 }
 
+#define listGET_OWNER_OF_HEAD_ENTRY( pxList )  ( (&( ( pxList )->xListEnd ))->pxNext->pvOwner )
+
 /* 链表节点初始化 */
 void vListInitialiseItem(ListItem_t * const pxItem);
 /* 链表根节点初始化 */
