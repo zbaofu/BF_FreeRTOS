@@ -19,17 +19,20 @@
 #include "FreeRTOS.h"
 #include "portable.h"
 
-#define taskYIELD()  portYIELD()
+
+#define tskIDLE_PRIORITY			 ( ( UBaseType_t ) 0U )
+#define taskYIELD()             portYIELD()
 
 
 
 /* 定义任务控制块 */
 typedef struct tskTaskControlBlock{
 	volatile StackType_t *pxTopOfStack;  // 栈顶
-	ListItem_t xStateListItem; // 任务节点
-	StackType_t *pxStack; // 任务栈起始地址
-	char pcTaskName[configMAX_TASK_NAME_LEN]; // 任务名称
-	TickType_t xTicksToDelay; /* 用于延时 */
+	ListItem_t            xStateListItem; // 任务节点
+	StackType_t           *pxStack; // 任务栈起始地址
+	char                  pcTaskName[configMAX_TASK_NAME_LEN]; // 任务名称
+	TickType_t            xTicksToDelay; /* 用于延时 */
+	UBaseType_t           uxPriority;  /* 任务优先级 */
 	
 } tskTCB;
 
@@ -46,6 +49,7 @@ TaskHandle_t xTaskCreateStatic(TaskFunction_t pxTaskCode,  // 任务入口，任务的函
 															const char * const pcName,   // 任务名称
 															const uint32_t ulStackDepth,  // 任务栈大小
 															void *const pvParameters,   // 任务形参
+															UBaseType_t uxPriority,      // 任务优先级
 															StackType_t* const puxStackBuffer, // 任务栈起始地址
 															TCB_t* const pxTaskBuffer);  // 任务控制块指针
 
@@ -56,9 +60,10 @@ static void prvInitialiseNewTask( 	TaskFunction_t pxTaskCode,              /* 任
 									const char * const pcName,              /* 任务名称，字符串形式 */
 									const uint32_t ulStackDepth,            /* 任务栈大小，单位为字 */
 									void * const pvParameters,              /* 任务形参 */
+									UBaseType_t uxPriority,                 /* 任务优先级，数值越大，优先级越高 */
 									TaskHandle_t * const pxCreatedTask,     /* 任务句柄 */
 									TCB_t *pxNewTCB ) ;
-															
+static void prvAddNewTaskToReadyList( TCB_t *pxNewTCB );		// 添加新任务到就绪列表													
 void prvInitialiseTaskLists( void );   // 初始化任务就绪列表                             
 void vTaskStartScheduler( void );    // 启动调度器
 void vTaskSwitchContext( void );		 // 任务切换函数

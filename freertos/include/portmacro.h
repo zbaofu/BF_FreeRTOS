@@ -61,15 +61,38 @@ portYIELDµÄÊµÏÖ¾ÍÊÇ½« PendSVµÄĞüÆğÎ»ÖÃ 1£¬µ±Ã»ÓĞÆäËüÖĞ¶ÏÔËĞĞµÄÊ±ºòÏìÓ¦ PendSVÖĞ¶
 }
 
 #define portTASK_FUNCTION( vFunction, pvParameters ) void vFunction( void *pvParameters )
+	
+#ifndef portFORCE_INLINE
+	#define portFORCE_INLINE __forceinline
+#endif
+
+/************** ¶àÓÅÏÈ¼¶ÅäÖÃ *****************/
+#ifndef configUSE_PORT_OPTIMISED_TASK_SELECTION
+	#define configUSE_PORT_OPTIMISED_TASK_SELECTION  1  // ²éÕÒ×î¸ßÓÅÏÈ¼¶µÄ¾ÍĞ÷ÈÎÎñ·½·¨Ñ¡Ôñ
+#endif
+#if configUSE_PORT_OPTIMISED_TASK_SELECTION == 1
+    /* ¼ì²é×î´óÓÅÏÈ¼¶ÊÇÊÇ·ñ³¬¹ı32 */
+	#if( configMAX_PRIORITIES > 32 )
+		#error configUSE_PORT_OPTIMISED_TASK_SELECTION can only be set to 1 when configMAX_PRIORITIES is less than or equal to 32.  It is very rare that a system requires more than 10 to 15 difference priorities as tasks that share a priority will time slice.
+	#endif
+		
+	/* ¸ù¾İÓÅÏÈ¼¶ ÉèÖÃ/Çå³ıÓÅÏÈ¼¶Î»ÖĞÏàÓ¦µÄÎ»,
+		½«uxReadyPriorities±ä³ÉÎ»Í¼£¬¶ÔÏàÓ¦µÄÓÅÏÈ¼¶Î»½øĞĞÖÃÎ»ºÍÇå³ı£¬ÓÃÓÚÊ¹ÓÃclzº¯Êı */
+	#define portRECORD_READY_PRIORITY(uxPriority, uxReadyPriorities) ( uxReadyPriorities ) |= ( 1UL << ( uxPriority ) )
+	#define portRESET_READY_PRIORITY( uxPriority, uxReadyPriorities ) ( uxReadyPriorities ) &= ~( 1UL << ( uxPriority ) )
+	
+	/* ²éÕÒ×î¸ßÓÅÏÈ¼¶£¬Í¨¹ı¼ÆËãuxReadyPrioritiesÇ°ÒìÁãclz£¬µÚÒ»´Î³öÏÖ1µÄÎ»Ç°ÃæÁãµÄ¸öÊı */
+	#define portGET_HIGHEST_PRIORITY( uxTopPriority, uxReadyPriorities ) uxTopPriority = ( 31UL - ( uint32_t ) __clz( ( uxReadyPriorities ) ) )
+
+
+#endif
+
+
 
 /********* ÁÙ½çÇø¹ÜÀí£¬½øĞĞÖĞ¶ÏµÄ¿ª¹Ø ***********/
 
 // ÉèÖÃÄÚÁªinlineĞŞÊÎ·û½Ó¿Ú
 #define portINLINE __inline
-
-#ifndef portFORCE_INLINE
-	#define portFORCE_INLINE __forceinline
-#endif
 
 /* ·ÇÖĞ¶Ï±£»¤µÄ½ø³öÁÙ½ç¶ÎµÄºê */
 #define portENTER_CRITICAL()					vPortEnterCritical()

@@ -62,7 +62,7 @@ void Task1_Entry(void *p_arg){
 		taskYIELD();
 #else // 改用阻塞延时
 		flag1 = 0;
-		vTaskDelay(1); // 延时20ms
+		vTaskDelay(2); // 延时20ms
 		flag1 = 1;
 		vTaskDelay(1);
 #endif
@@ -112,19 +112,21 @@ int main(void){
 	                                  (char *)"Task1",              // 任务名称
 																			(uint32_t)TASK1_STACK_SIZE,  // 任务栈大小
 																		(void*)NULL,                 // 任务参数
+																			(UBaseType_t) 1,            // 任务优先级
 																			(StackType_t *)Task1Stack,  // 任务栈起始地址
 																		(TCB_t*)&Task1TCB);           // 任务控制块
   // 将任务1节点插入到任务就绪列表中
-	vListInsertEnd(&(pxReadyTasksLists[1]),&(((TCB_t*)(&Task1TCB))->xStateListItem));
+	// vListInsertEnd(&(pxReadyTasksLists[1]),&(((TCB_t*)(&Task1TCB))->xStateListItem));
 	
 	Task2_Handle = xTaskCreateStatic( (TaskFunction_t)Task2_Entry,   /* 任务入口 */
 					                  (char *)"Task2",               /* 任务名称，字符串形式 */
 					                  (uint32_t)TASK2_STACK_SIZE ,   /* 任务栈大小，单位为字 */
 					                  (void *) NULL,                 /* 任务形参 */
+															(UBaseType_t) 2,
 					                  (StackType_t *)Task2Stack,     /* 任务栈起始地址 */
 					                  (TCB_t *)&Task2TCB );          /* 任务控制块 */
    /* 将任务添加到就绪列表 */                                 
-  vListInsertEnd( &( pxReadyTasksLists[2] ), &( ((TCB_t *)(&Task2TCB))->xStateListItem ) );																
+  // vListInsertEnd( &( pxReadyTasksLists[2] ), &( ((TCB_t *)(&Task2TCB))->xStateListItem ) );																
 	
   /* 启动调度器，开始多任务调度切换 */
 	vTaskStartScheduler();

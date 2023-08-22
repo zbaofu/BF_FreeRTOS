@@ -40,15 +40,15 @@ static UBaseType_t uxCriticalNesting = 0xaaaaaaaa;
 #define portNVIC_SYSTICK_LOAD_REG (*((volatile uint32_t *) 0xe000e014))
 /* SysTick时钟源选择 */
 #ifndef configSYSTICK_CLOCK_HZ
-  #define configSYSTICK_CLOCK_HZ configCPU_CLOCK_HZ
+  #define configSYSTICK_CLOCK_HZ configCPU_CLOCK_HZ  // configSYSTICK_CLOCK_HZ=25M
   // 确保SysTick的时钟和内核一致
-	#define portNVIC_SYSTICK_CLK_BIT (1UL << 2UL) 
+	#define portNVIC_SYSTICK_CLK_BIT (1UL << 2UL) // 0100
 #else
 	#define portNVIC_SYSTICK_CLK_BIT (0) 
 #endif
 
-#define portNVIC_SYSTICK_INT_BIT			( 1UL << 1UL )
-#define portNVIC_SYSTICK_ENABLE_BIT			( 1UL << 0UL )
+#define portNVIC_SYSTICK_INT_BIT			( 1UL << 1UL ) // 0010
+#define portNVIC_SYSTICK_ENABLE_BIT			( 1UL << 0UL ) // 0001
 
 
 /* 函数声明 */
@@ -287,10 +287,13 @@ void xPortSysTickHandler(void){
 
 /******************************初始化SysTick*****************************/
 void vPortSetupTimerInterrupt( void ){
-	/* 设置重装载寄存器的值 */
+  /* 
+	设置重装载寄存器的值 = ox000061a7 =  25M/1000 - 1
+	间隔时间就等于 (25M/1000)*(1/25M) = 1ms
+  */
 	portNVIC_SYSTICK_LOAD_REG = (configSYSTICK_CLOCK_HZ / configTICK_RATE_HZ) - 1UL;
 	/*
-	设置SysTick控制寄存器
+	设置SysTick控制寄存器 ox00000007
 	设置系统定时器的时钟等于内核时钟
 	使能SysTick定时器中断
 	使能SysTick定时器
