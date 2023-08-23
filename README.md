@@ -14,5 +14,5 @@ FreeRTOS内核源码学习记录，按照《野火Free_RTOS内核实现于应用
 https://vintage-march-2cf.notion.site/BF_RTOS-0272bf91d4c34ba2bae2bbe89312ba36?pvs=4
 
 ## 参考资料
-《野火Free_RTOS内核实现与应用开发实战指南》  
+《野火FreeRTOS内核实现与应用开发实战指南》  
 《Cortex-M3权威指南》（中文）  
