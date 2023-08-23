@@ -70,7 +70,8 @@ void vTaskSwitchContext( void );		 // 任务切换函数
 static portTASK_FUNCTION( prvIdleTask, pvParameters ); // 空闲任务所执行函数 
 void vTaskDelay( const TickType_t xTicksToDelay ); // 阻塞延时函数
 void xTaskIncrementTick(void);  // 更新系统时基
-
+static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait );  // 将任务插入到延时列表
+static void prvResetNextTaskUnblockTime( void );  // 重置下一任务解锁时间				
 
 /* 带中断保护的进出临界段的宏 */									
 #define taskENTER_CRITICAL()           portENTER_CRITICAL()

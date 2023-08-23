@@ -24,13 +24,23 @@ static TaskHandle_t xIdleTaskHandle	= NULL; // ¿ÕÏĞÈÎÎñ¾ä±ú
 static volatile TickType_t xTickCount = ( TickType_t ) 0U;  // ÏµÍ³Ê±»ù±äÁ¿
 static volatile UBaseType_t uxTopReadyPriority 		= tskIDLE_PRIORITY;  // ´æ´¢ÈÎÎñÓÅÏÈ¼¶µÄÎ»Í¼±í
 
+/* ÈÎÎñÑÓÊ±ÁĞ±í¶¨Òå */
+static List_t xDelayedTaskList1;
+static List_t xDelayedTaskList2;  // ÏµÍ³Ê±»ùÒç³ö²ÉÓÃ
+static List_t * volatile pxDelayedTaskList;
+static List_t * volatile pxOverflowDelayedTaskList;  // ÏµÍ³Ê±»ùÒç³öÊ±Ê¹ÓÃµÄÁĞ±íÖ¸Õë
+
+static volatile TickType_t xNextTaskUnblockTime = (TickType_t) 0U; // ÏÂÒ»¸öÈÎÎñµÄ½âËøÊ±¿Ì
+static volatile BaseType_t xNumOfOverflows 			= ( BaseType_t ) 0; // Ê±¼äÒç³ö¼ÆÊı
+
 /* ½«ÈÎÎñÌí¼Óµ½¾ÍĞ÷ÁĞ±í */                                    
 #define prvAddTaskToReadyList( pxTCB )																   \
 	taskRECORD_READY_PRIORITY( ( pxTCB )->uxPriority );												   \
 	vListInsertEnd( &( pxReadyTasksLists[ ( pxTCB )->uxPriority ] ), &( ( pxTCB )->xStateListItem ) ); \
 	
 
-/* ²éÕÒ×î¸ßÓÅÏÈ¼¶µÄ¾ÍĞ÷ÈÎÎñµÄÍ¨ÓÃ·½·¨ */
+/******************** ²éÕÒ×î¸ßÓÅÏÈ¼¶µÄ¾ÍĞ÷ÈÎÎñµÄ·½·¨ *********************/
+/* Í¨ÓÃ·½·¨ */
 #if(configUSE_PORT_OPTIMISED_TASK_SELECTION ==0)
 	#define taskRECORD_READY_PRIORITY(uxPriority) \
 	{                                           \
@@ -70,10 +80,10 @@ static volatile UBaseType_t uxTopReadyPriority 		= tskIDLE_PRIORITY;  // ´æ´¢ÈÎÎ
 		listGET_OWNER_OF_NEXT_ENTRY( pxCurrentTCB, &( pxReadyTasksLists[ uxTopPriority ] ) );	 \
 	}
 	
-
-#if 0
+/* ÇåÁãÓÅÏÈ¼¶Î»Í¼±íÏìÓ¦Î» */
+#if 1
 	#define taskRESET_READY_PRIORITY( uxPriority )														\
-	{																									\
+	{				/* ÅĞ¶Ïµ±Ç°ÓÅÏÈ¼¶ÏÂÊÇ·ñÓĞÈÎÎñ£¬Ã»ÈÎÎñÔÙÇåÁã */																					\
 		if( listCURRENT_LIST_LENGTH( &( pxReadyTasksLists[ ( uxPriority ) ] ) ) == ( UBaseType_t ) 0 )	\
 		{																								\
 			portRESET_READY_PRIORITY( ( uxPriority ), ( uxTopReadyPriority ) );							\
@@ -88,9 +98,20 @@ static volatile UBaseType_t uxTopReadyPriority 		= tskIDLE_PRIORITY;  // ´æ´¢ÈÎÎ
 	
 #endif
 
+/******************************* ÈÎÎñÑÓÊ±ÁĞ±íÇĞ»» *****************************/
+/* ÏµÍ³Ê±»ù¼ÆÊıÆ÷Òç³öÊ±£¬½øĞĞÑÓÊ±ÁĞ±íµÄ»¥ÏàÇĞ»» */
+#define taskSWITCH_DELAYED_LISTS() \
+{                            \
+	List_t *pxTemp;\
+	pxTemp = pxDelayedTaskList;\
+	pxDelayedTaskList = pxOverflowDelayedTaskList;\
+	pxOverflowDelayedTaskList = pxTemp;\
+	xNumOfOverflows++;\
+	prvResetNextTaskUnblockTime();\
+}
 
 
-/* ¾²Ì¬ÈÎÎñ´´½¨º¯Êı */
+/***************************** ¾²Ì¬ÈÎÎñ´´½¨º¯Êı *******************************/
 // ¾²Ì¬´´½¨ÈÎÎñ£¬tcbºÍÕ»ÄÚ´æĞèÒªÊÂÏÈ¶¨ÒåºÃ£¬ÊÇ¾²Ì¬ÄÚ´æ£¬É¾³ıÈÎÎñÊ±£¬ÄÚ´æ²»ÄÜÊÍ·Å
 #if (configSUPPORT_STATIC_ALLOCATION==1) 
 TaskHandle_t xTaskCreateStatic(TaskFunction_t pxTaskCode,  // ÈÎÎñÈë¿Ú£¬ÈÎÎñµÄº¯ÊıÃû³Æ
@@ -124,7 +145,7 @@ TaskHandle_t xTaskCreateStatic(TaskFunction_t pxTaskCode,  // ÈÎÎñÈë¿Ú£¬ÈÎÎñµÄº¯
 
 #endif
 
-/* ´´½¨ĞÂÈÎÎñ */
+/********************************** ´´½¨ĞÂÈÎÎñ ******************************/
 static void prvInitialiseNewTask( 	TaskFunction_t pxTaskCode,              /* ÈÎÎñÈë¿Ú */
 									const char * const pcName,              /* ÈÎÎñÃû³Æ£¬×Ö·û´®ĞÎÊ½ */
 									const uint32_t ulStackDepth,            /* ÈÎÎñÕ»´óĞ¡£¬µ¥Î»Îª×Ö */
@@ -180,14 +201,22 @@ static void prvInitialiseNewTask( 	TaskFunction_t pxTaskCode,              /* ÈÎ
 
 }				
 
-/* ¾ÍĞ÷ÁĞ±í³õÊ¼»¯ */
+/******************************** ÈÎÎñÏà¹ØÁĞ±í³õÊ¼»¯ ***************************/
 void prvInitialiseTaskLists(void){
 	UBaseType_t uxPriority;
+	/* ³õÊ¼»¯¾ÍĞ÷ÁĞ±í */
 	for(uxPriority = (UBaseType_t) 0U; 
 	    uxPriority<(UBaseType_t)configMAX_PRIORITIES;
 	    uxPriority++){
 		vListInitialise(&(pxReadyTasksLists[uxPriority]));
 	}
+	/* ³õÊ¼»¯ÈÎÎñÑÓÊ±ÁĞ±í */		
+	vListInitialise(&xDelayedTaskList1);
+	vListInitialise(&xDelayedTaskList2);
+	pxDelayedTaskList = &xDelayedTaskList1;
+	pxOverflowDelayedTaskList = &xDelayedTaskList2;
+	
+	
 }
 
 static void prvAddNewTaskToReadyList( TCB_t *pxNewTCB )
@@ -237,7 +266,7 @@ void vApplicationGetIdleTaskMemory( TCB_t **ppxIdleTaskTCBBuffer,
                                     uint32_t *pulIdleTaskStackSize );
 
 
-/* Æô¶¯µ÷¶ÈÆ÷º¯Êı */
+/************************** Æô¶¯µ÷¶ÈÆ÷º¯Êı ******************************/
 void vTaskStartScheduler( void ){
 	/*************´´½¨¿ÕÏĞÈÎÎñ****************/
 	TCB_t *pxIdleTaskTCBBuffer = NULL;  // Ö¸Ïò¿ÕÏĞÈÎÎñµÄtcb
@@ -266,6 +295,9 @@ void vTaskStartScheduler( void ){
 																				
 	/* ³õÊ¼»¯ÏµÍ³Ê±»ù¼ÆÊıÆ÷ */
   xTickCount = ( TickType_t ) 0U;
+		
+  /* ³õÊ¼»¯ÏÂÒ»ÈÎÎñ½âËøÊ±¿Ì±äÁ¿ */																				
+  xNextTaskUnblockTime = portMAX_DELAY;
 	
 	// Æô¶¯µ÷¶ÈÆ÷
   if( xPortStartScheduler() != pdFALSE ){
@@ -286,7 +318,7 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters ){
 }
 
 
-/* ÈÎÎñÇĞ»»º¯Êı£¬ÔÚPendSVÖĞ¶Ï·şÎñº¯ÊıÖĞµ÷ÓÃ */
+/******************** ÈÎÎñÇĞ»»º¯Êı£¬ÔÚPendSVÖĞ¶Ï·şÎñº¯ÊıÖĞµ÷ÓÃ *****************************/
 #if 1
 void vTaskSwitchContext(void){
 	/* ²éÕÒ×î¸ßÓÅÏÈ¼¶¾ÍĞ÷ÈÎÎñµÄtcb£¬²¢¸üĞÂµ½pxCurrentTCB */
@@ -353,7 +385,7 @@ void vTaskSwitchContext(void){
 
 #endif
 
-/* ×èÈûÑÓÊ±º¯Êı */
+/******************************* ×èÈûÑÓÊ±º¯Êı *************************/
 void vTaskDelay( const TickType_t xTicksToDelay ){
 	TCB_t *pxTCB = NULL;
 	
@@ -365,35 +397,120 @@ void vTaskDelay( const TickType_t xTicksToDelay ){
 	
 	/* ½«ÈÎÎñ´Ó¾ÍĞ÷ÁĞ±íÖĞÒÆ³ı */
 	// uxListRemove(&(pxTCB->xStateListItem));
-	taskRESET_READY_PRIORITY(pxTCB->uxPriority);
+	// taskRESET_READY_PRIORITY(pxTCB->uxPriority);
+	
+	/* ½«ÈÎÎñ²åÈëµ½ÑÓÊ±ÁĞ±í */
+  prvAddCurrentTaskToDelayedList( xTicksToDelay );
 	
 	
 	/* ÈÎÎñÇĞ»» */
 	taskYIELD();
 }
 
-/* ¸üĞÂÏµÍ³Ê±»ù */
+/************************** ¸üĞÂÏµÍ³Ê±»ù ****************************/
 void xTaskIncrementTick(void){
 	TCB_t *pxTCB = NULL;
-  BaseType_t i = 0;
+	TickType_t xItemValue;
+  // BaseType_t i = 0;
 	
 	/* ¸üĞÂÏµÍ³Ê±»ù±äÁ¿£¬Ê±»ù¼Ó1 */
 	const TickType_t xConstTickCount = xTickCount + 1;
 	xTickCount = xConstTickCount;
 	
-	/* É¨Ãè¾ÍĞ÷ÁĞ±íÖĞËùÓĞÈÎÎñµÄxTicksToDelay£¬Èç¹û²»Îª0£¬¾Í¼õ1 */
-	for(i = 0;i < configMAX_PRIORITIES; i++){
-		pxTCB = (TCB_t*) listGET_OWNER_OF_HEAD_ENTRY(( &pxReadyTasksLists[i] ));
-		if(pxTCB->xTicksToDelay > 0){
-			pxTCB->xTicksToDelay --;
-			/* ÑÓÊ±Ê±¼äµ½0£¬½«Î»Í¼±íuxTopReadyPriorityÖĞ¶ÔÓ¦Î»ÖÃÖÃÎ» */
-			if(pxTCB->xTicksToDelay == 0){
-				taskRECORD_READY_PRIORITY(pxTCB->uxPriority);
-			}
-		}
+	/* Èç¹ûÊ±¼äÒç³ö£¬ÔòÇĞ»»ÑÓÊ±ÁĞ±í */
+	if(xConstTickCount == (TickType_t)0U){
+		taskSWITCH_DELAYED_LISTS();
 	}
+	
+	/* ×î½üÑÓÊ±ÈÎÎñµ½ÆÚ */
+	if(xConstTickCount >= xNextTaskUnblockTime){
+		for(;;){
+			/* ÑÓÊ±ÁĞ±íÎª¿Õ£¬½«½âËøÊ±¼äÉèÎª×î´óÖµ */
+			if(listLIST_IS_EMPTY(pxDelayedTaskList) != pdFALSE){
+				xNextTaskUnblockTime = portMAX_DELAY;
+				break;
+			
+			}
+			else{
+				/* »ñÈ¡µÚÒ»¸öÈÎÎñµÄ½âËøÊ±¼ä */
+				pxTCB = (TCB_t *)listGET_OWNER_OF_HEAD_ENTRY(pxDelayedTaskList);
+				xItemValue = listGET_LIST_ITEM_VALUE (&(pxTCB->xStateListItem));
+				/* ½«ËùÓĞµ½ÆÚµÄÈÎÎñÒÆ³ı£¬ÔÙ¸üĞÂÏÂÒ»ÈÎÎñµÄ½âËøÊ±¼ä²¢Ìø³öÑ­»· */
+				if(xConstTickCount<xItemValue){
+					xNextTaskUnblockTime = xItemValue;
+					break;
+				
+				}
+				/* ½«ÈÎÎñ´ÓÑÓÊ±ÁĞ±íÇå³ı£¬¼Óµ½¾ÍĞ÷ÁĞ±í */
+				(void) uxListRemove(&(pxTCB->xStateListItem));
+				prvAddTaskToReadyList(pxTCB);
+				
+			}		
+		}	
+	}
+	
+	
+	
+	/* É¨Ãè¾ÍĞ÷ÁĞ±íÖĞËùÓĞÈÎÎñµÄxTicksToDelay£¬Èç¹û²»Îª0£¬¾Í¼õ1 */
+//	for(i = 0;i < configMAX_PRIORITIES; i++){
+//		pxTCB = (TCB_t*) listGET_OWNER_OF_HEAD_ENTRY(( &pxReadyTasksLists[i] ));
+//		if(pxTCB->xTicksToDelay > 0){
+//			pxTCB->xTicksToDelay --;
+//			/* ÑÓÊ±Ê±¼äµ½0£¬½«Î»Í¼±íuxTopReadyPriorityÖĞ¶ÔÓ¦Î»ÖÃÖÃÎ» */
+//			if(pxTCB->xTicksToDelay == 0){
+//				taskRECORD_READY_PRIORITY(pxTCB->uxPriority);
+//			}
+//		}
+//	}
 	
 	/* ÈÎÎñÇĞ»» */
 	portYIELD();
 
+}
+
+/************************** ½«ÈÎÎñ²åÈëµ½ÑÓÊ±ÁĞ±í ***************************/
+static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait ){
+	TickType_t xTimeToWake;
+	
+	/* »ñÈ¡ÏµÍ³Ê±»ù¼ÆÊıÆ÷µÄÖµ */
+	const TickType_t xConstTickCount = xTickCount;
+	
+	/* ½«ÈÎÎñ´Ó¾ÍĞ÷ÁĞ±íÖĞÉ¾³ı */
+	if( uxListRemove(&(pxCurrentTCB->xStateListItem)) == (UBaseType_t)0){
+		/* ½«ÈÎÎñÓÅÏÈ¼¶Î»Í¼ÖĞ¶ÔÓ¦Î»Çå³ı */
+		portRESET_READY_PRIORITY(pxCurrentTCB->uxPriority,uxTopReadyPriority);
+	}
+	
+	/* ¼ÆËãµ±Ç°ÈÎÎñ½âËøÊ±¿Ì */
+	xTimeToWake = xConstTickCount + xTicksToWait;
+	
+	/* ½«µ±Ç°ÈÎÎñ½âËøÊ±¿ÌÉèÖÃ³É½ÚµãÅÅĞòÖµ */
+	listSET_LIST_ITEM_VALUE(&(pxCurrentTCB->xStateListItem),xTimeToWake);
+	
+	/* Òç³ö */
+	if(xTimeToWake < xConstTickCount){
+		vListInsert(pxOverflowDelayedTaskList,&(pxCurrentTCB->xStateListItem));
+	}
+	else{
+		vListInsert (pxDelayedTaskList,&(pxCurrentTCB->xStateListItem));
+		/* ¸üĞÂÏÂÒ»¸öÈÎÎñ½âËøÊ±¿Ì */
+		if(xTimeToWake<xNextTaskUnblockTime){
+			xNextTaskUnblockTime = xTimeToWake;
+		}
+	
+	}
+}
+
+/* ¸üĞÂÏÂÒ»ÈÎÎñµÄ½âËøÊ±¼ä */
+static void prvResetNextTaskUnblockTime( void ){
+	TCB_t *pxTCB;
+	/* µ±Ç°ÑÓÊ±ÁĞ±íÎª¿Õ£¬ÉèÖÃ½âËøÊ±¼äÎª×î´óÖµ */
+	if(listLIST_IS_EMPTY(pxDelayedTaskList)!=pdFALSE){
+		xNextTaskUnblockTime = portMAX_DELAY;
+	}
+	else{
+		/* µ±Ç°ÁĞ±í²»Îª¿ÕÊ±£¬½«½âËøÊ±¼ä¸üĞÂµ½µ±Ç°ÑÓÊ±ÁĞ±íµÚÒ»¸ö½ÚµãµÄÅÅĞòÖµ */
+		(pxTCB) = (TCB_t*) listGET_OWNER_OF_HEAD_ENTRY(pxDelayedTaskList);
+		xNextTaskUnblockTime = listGET_LIST_ITEM_VALUE(&((pxTCB)->xStateListItem));
+	}
 }

@@ -187,6 +187,11 @@
           <WinNumber>1</WinNumber>
           <ItemText>SysTick_Handler</ItemText>
         </Ww>
+        <Ww>
+          <count>10</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>xDelayedTaskList1</ItemText>
+        </Ww>
       </WatchWindow1>
       <MemoryWindow1>
         <Mm>
